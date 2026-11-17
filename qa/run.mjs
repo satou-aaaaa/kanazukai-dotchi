@@ -61,6 +61,9 @@ const OKSRC = /^https:\/\/www\.bunka\.go\.jp\/kokugo_nihongo\/sisaku\/joho\/joho
   check("問題の数：全部で200通り以上・どの種類も6通り以上（好きなだけ遊んでも同じ問題が続かない。game-dev.md F6）", total >= 200 && few.length === 0, `${total}通り ${few.join(",")}`);
   check("問題：種類は32（やさしい10・ふつう10・むずかしい12）", G.KINDS.length === 32 && [0, 1, 2].map((l) => G.kindsOf(l).length).join() === "10,10,12");
   check("答えの表と data.js の種類が同じ・答えが重ならない", Object.keys(TB).sort().join() === G.KINDS.map((k) => k.id).sort().join() && new Set(G.KINDS.map((k) => k.ans)).size === G.KINDS.length);
+  // 拗音・促音は「なるべく小書き」で、大きく書くことは禁じていない（本文 第1 の注意）。小書きと大書きのちがいだけの書き方をまちがいにしない（kanazukai-dotchi #1 の CodeRabbit）
+  { const big = (w) => w.replace(/ゃ/g, "や").replace(/ゅ/g, "ゆ").replace(/ょ/g, "よ").replace(/っ/g, "つ"), bad = G.KINDS.filter((k) => k.ng.some((o) => big(o) === big(k.ans))).map((k) => k.id);
+    check("拗音・促音の小書きと大書きのちがいだけの書き方（きょう／きよう）を、まちがいの選び肢にしない", bad.length === 0, bad.join(",")); }
   check("許容のある「一語の意識の語」（せかいじゅう など）を答えにも選び肢にも出さない（AGENTS.md）", !G.KINDS.some((k) => [k.ans, ...k.ng].some((o) => NOQ.some((w) => o.includes(w) || o.includes(w.replace(/じ/g, "ぢ").replace(/ず/g, "づ"))))));
   const longWhy = [], longLook = [], longOpt = [];
   for (const k of G.KINDS) { if ([...k.why].length > 100) longWhy.push(k.id); if ([...k.look].length > 45 || [...k.key].length > 60) longLook.push(k.id); for (let s = 0; s < 200; s++) { const P = G.make(`${k.id}|len${s}`); for (const o of [...P.opts, P.q]) if ([...o].length > 60) longOpt.push(`${k.id}:${o}`); } }
@@ -525,6 +528,16 @@ try {
   await q.close(); }
 { const bad = G.KINDS.filter((k) => { for (let i = 0; i < 200; i++) if (!G.GROUPS[G.make(`${k.id}|g${i}`).grp]) return true; return false; }).map((k) => k.id), used = new Set(G.KINDS.map((k) => k.grp));
   check("2段目の答え：どの種類の問題も7つのどれかで、7つとも使う", bad.length === 0 && used.size === 7, bad.join(",")); }
+// ことば帳から始める1種類の練習は、どの種類も5問（ちがう問題が5通り無い種類で4問以下になっていた。shared-workflows#409）
+{ const q = await newPage(); await closeHow(q);
+  const few = await q.evaluate((ids) => ids.filter((id) => { __nm.start("p", id); const r = __nm.load().runs.p; return !r || r.list.length !== 5 || r.list.some((t) => t.split("|")[0] !== id); }), G.KINDS.map((k) => k.id));
+  check("ことば帳から始める1種類の練習は、どの種類も5問になる（ちがう問題が5通り無い種類でも）", few.length === 0, few.join(","));
+  await q.close(); }
+// 記録の数の欄に、数でも文字でもない値（{toString:null} など）が入っていても、画面が出る（hoken-dore #1 の CodeRabbit）
+{ const q = await newPage(); await closeHow(q);
+  await q.evaluate((k) => localStorage.setItem(k, JSON.stringify({ v: 1, tut: true, ebest: { toString: null }, days: {}, hdays: {}, adays: {}, dex: {}, runs: {}, kofi: {}, ach: {} })), "knz-v1"); await q.reload(); await q.waitForTimeout(200);
+  check("記録の数の欄が数でも文字でもなくても、ホームが出る（数にするのは数と文字だけ）", await q.locator("#go-d").count() === 1 && await q.evaluate(() => __nm.load().ebest) === 0);
+  await q.close(); }
 // 引き継ぎコード（shared-workflows template/qa/transfer-check.mjs）
 try {
   const sample = { "knz-v1": JSON.stringify({ v: 1, tut: true, days: { "2026-11-13": { m: [0, 1, 0, 0, 2], k: ["e_otousan", "e_kyou", "n_neesan", "n_tsuduku", "h_jimen"] } }, hdays: {}, adays: {}, dex: { e_otousan: 1, e_okaasan: 1, e_ohayou: 1, n_neesan: 1, n_ekiheiku: 1 }, runs: {}, kofi: {}, ach: {}, ebest: 7, t: 1 }), "knz-fs": "3", "knz-depth": JSON.stringify({ v: 1, rv: { "e_otousan|x1": { s: 1, due: "2026-11-20", t: 5 } } }) }; // 復習の記録も引き継ぐかを見る（CodeRabbit shingo-yomi#1）
