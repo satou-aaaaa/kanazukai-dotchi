@@ -434,7 +434,7 @@ try {
     await solve(q); await q.click("#next"); await q.waitForTimeout(150);
     const after = await mem(q), dp2 = await q.evaluate(() => JSON.parse(localStorage.getItem("knz-depth")));
     check("復習を終えると結果は「復習」・今日の記録は増えない・シェアは出ない", (await q.textContent("h1")).includes("復習") && JSON.stringify(after.days) === JSON.stringify(before.days) && await q.locator("#share").count() === 0);
-    check("復習で一度で正解すると、次は3日後へ進む", Object.values(dp2.rv).every((x) => x.s === 1 && x.due > TODAY));
+    check("復習で一度で正解すると、次はちょうど3日後へ進む", Object.values(dp2.rv).every((x) => x.s === 1 && x.due === dayBefore(-3)), JSON.stringify(dp2.rv));
     await q.goto(url); await q.waitForTimeout(150);
     check("復習を終えたら、ホームの「復習」は消える", await q.locator("#go-r").count() === 0);
     await q.evaluate(() => { const d = JSON.parse(localStorage.getItem("knz-depth")); d.rv["nai|1"] = { s: 0, due: "2026-01-01", t: 1 }; d.rv["constructor|x"] = { s: 0, due: "2026-01-01", t: 2 }; localStorage.setItem("knz-depth", JSON.stringify(d)); });
